@@ -13,6 +13,9 @@ import requests
 from .clients import RateLimiter
 
 
+MAX_TX_VERSION = 2
+
+
 class TooActive(Exception):
     """Wallet has more transactions in the window than we are willing to fetch (a bot)."""
 
@@ -44,10 +47,10 @@ def to_enhanced(sig, tx):
 
 
 class SolanaRPC:
-    def __init__(self, url="https://api.mainnet-beta.solana.com", per_min=210, workers=4):
+    def __init__(self, url="https://api.mainnet-beta.solana.com", per_min=90, workers=2):
         self.url = url
         self.local = threading.local()
-        self.lim = RateLimiter(per_min)  # public RPC allows ~40 calls / 10s per method
+        self.lim = RateLimiter(per_min)  # the public RPC starts refusing well below its documented limit
         self.workers = workers
 
     @property
@@ -76,6 +79,12 @@ class SolanaRPC:
             return j.get("result")
         raise RuntimeError(f"RPC {method} failed after {tries} tries")
 
+    def transaction(self, sig):
+        """One transaction in enhanced format, or None. Accepts newer transaction versions:
+        with a lower cap the node refuses them and they would be silently missing."""
+        tx = self.call("getTransaction", [sig, {"encoding": "json", "maxSupportedTransactionVersion": MAX_TX_VERSION}])
+        return to_enhanced(sig, tx) if tx else None
+
     def signatures(self, wallet, since_ts, max_sigs):
         """Successful signatures newest-first back to since_ts. Raises TooActive past max_sigs."""
         out, before = [], None
@@ -100,9 +109,5 @@ class SolanaRPC:
         if len(sigs) < min_sigs:
             return []
 
-        def one(sig):
-            tx = self.call("getTransaction", [sig, {"encoding": "json", "maxSupportedTransactionVersion": 0}])
-            return to_enhanced(sig, tx) if tx else None
-
         with ThreadPoolExecutor(self.workers) as ex:
-            return [t for t in ex.map(one, sigs) if t]
+            return [t for t in ex.map(self.transaction, sigs) if t]

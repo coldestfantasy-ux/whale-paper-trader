@@ -83,10 +83,15 @@ def rank_wallets(trades_by_pool, max_trades=12):
     return out
 
 
-def human_paced(cands, limit, max_tx_per_day, rpc, log=print, max_probes=600):
-    """Keep candidates whose on-chain activity a person could follow. One cheap RPC call
-    each: the time span of the wallet's latest 1000 transactions gives its pace."""
+def human_paced(cands, limit, max_tx_per_day, rpc, log=print, max_probes=1000, sample=8, min_swaps=3):
+    """Keep candidates that trade at a pace a person could follow and really are swap
+    traders. One RPC call gives the pace (time span of the latest 1000 transactions);
+    for wallets that pass, `sample` recent transactions are parsed and at least
+    `min_swaps` must be SOL swaps (many addresses behind large trades are routers,
+    payment wallets or stablecoin movers, not traders)."""
     import time
+
+    from .parse import parse_tx
     keep, now = [], time.time()
     for i, c in enumerate(cands[:max_probes], 1):
         try:
@@ -97,9 +102,16 @@ def human_paced(cands, limit, max_tx_per_day, rpc, log=print, max_probes=600):
             days = max((now - (page[-1].get("blockTime") or now)) / 86400, 0.01)
             c["tx_per_day"] = len(page) / days if len(page) == 1000 else len(page) / max(days, 30)
             if c["tx_per_day"] <= max_tx_per_day:
-                keep.append(c)
+                sigs = [s["signature"] for s in page if not s.get("err")][:sample]
+                try:
+                    txs = [rpc.transaction(s) for s in sigs]
+                except RuntimeError:
+                    continue
+                c["swaps_in_sample"] = sum(1 for t in txs if t and parse_tx(t, c["wallet"]))
+                if c["swaps_in_sample"] >= min(min_swaps, len(sigs)):
+                    keep.append(c)
         if i % 50 == 0:
-            log(f"  checked {i} wallets, {len(keep)} human-paced so far")
+            log(f"  checked {i} wallets, {len(keep)} human-paced swap traders so far")
         if len(keep) >= limit:
             break
     return keep

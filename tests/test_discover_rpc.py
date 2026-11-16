@@ -67,11 +67,23 @@ def test_human_paced_drops_bots_by_onchain_activity():
 
     class R:
         def call(self, method, params):
-            if params[0] == "bot":   # 1000 txs in the last 2 hours
-                return [{"blockTime": now - 7200}] * 1000
-            if params[0] == "human":  # 1000 txs over 40 days = 25/day
-                return [{"blockTime": now - 40 * 86400}] * 1000
-            return [{"blockTime": now - 86400}] * 90   # 90 txs in total, ever
+            w = params[0]
+            if w == "bot":   # 1000 txs in the last 2 hours
+                return [{"blockTime": now - 7200, "signature": f"{w}:x"}] * 1000
+            if w in ("human", "mover"):  # 1000 txs over 40 days = 25/day
+                return [{"blockTime": now - 40 * 86400, "signature": f"{w}:x"}] * 1000
+            return [{"blockTime": now - 86400, "signature": f"{w}:x"}] * 90   # 90 txs in total, ever
 
-    out = human_paced([{"wallet": w} for w in ("bot", "human", "new")], 10, 60, R(), log=lambda *_: None)
+        def transaction(self, sig):
+            w = sig.split(":")[0]
+            if w == "mover":  # human-paced but never swaps
+                return to_enhanced(sig, _raw(0, 0, 0))
+            raw = _raw(-2_000_000_000, 0, 7_000_000)
+            raw["transaction"]["message"]["accountKeys"][0] = w
+            for b in raw["meta"]["postTokenBalances"]:
+                b["owner"] = w
+            return to_enhanced(sig, raw)
+
+    out = human_paced([{"wallet": w} for w in ("bot", "human", "mover", "new")], 10, 60, R(), log=lambda *_: None)
     assert [c["wallet"] for c in out] == ["human", "new"] and round(out[0]["tx_per_day"]) == 25
+    assert out[0]["swaps_in_sample"] == 8
