@@ -49,9 +49,10 @@ def pool_trades(g, pool, min_usd):
     return [t["attributes"] for t in r.json().get("data") or []]
 
 
-def rank_wallets(trades_by_pool, max_trades=40):
+def rank_wallets(trades_by_pool, max_trades=12):
     """trades_by_pool: {mint: [gecko trade attrs]}. Returns candidates, best first.
-    Deliberately loose: drops only obvious bots (too many trades) and wallets that never bought."""
+    Deliberately loose: drops wallets that never bought and ones with many trades in the
+    sample (on real data those are almost all bots), then orders by size bought."""
     w = defaultdict(lambda: {"trades": 0, "buy_sol": 0.0, "sell_sol": 0.0, "bought": set(), "closed_pnl": 0.0})
     for mint, trades in trades_by_pool.items():
         per = defaultdict(lambda: [0.0, 0.0])
@@ -78,11 +79,33 @@ def rank_wallets(trades_by_pool, max_trades=40):
             continue
         out.append({"wallet": addr, "tokens": len(a["bought"]), "trades": a["trades"],
                     "buy_sol": a["buy_sol"], "sell_sol": a["sell_sol"], "closed_pnl": a["closed_pnl"]})
-    out.sort(key=lambda x: (x["tokens"], x["closed_pnl"], x["buy_sol"]), reverse=True)
+    out.sort(key=lambda x: (x["closed_pnl"] > 0, x["buy_sol"]), reverse=True)
     return out
 
 
-def discover(con, pages=3, min_usd=300, limit=150, log=print):
+def human_paced(cands, limit, max_tx_per_day, rpc, log=print, max_probes=600):
+    """Keep candidates whose on-chain activity a person could follow. One cheap RPC call
+    each: the time span of the wallet's latest 1000 transactions gives its pace."""
+    import time
+    keep, now = [], time.time()
+    for i, c in enumerate(cands[:max_probes], 1):
+        try:
+            page = rpc.call("getSignaturesForAddress", [c["wallet"], {"limit": 1000}]) or []
+        except RuntimeError:
+            continue
+        if page:
+            days = max((now - (page[-1].get("blockTime") or now)) / 86400, 0.01)
+            c["tx_per_day"] = len(page) / days if len(page) == 1000 else len(page) / max(days, 30)
+            if c["tx_per_day"] <= max_tx_per_day:
+                keep.append(c)
+        if i % 50 == 0:
+            log(f"  checked {i} wallets, {len(keep)} human-paced so far")
+        if len(keep) >= limit:
+            break
+    return keep
+
+
+def discover(con, pages=3, min_usd=300, limit=150, max_tx_per_day=60, log=print, rpc=None):
     g = Gecko(con)
     by_mint = {}
     pools = list_pools(g, pages, log)
@@ -90,14 +113,23 @@ def discover(con, pages=3, min_usd=300, limit=150, log=print):
         by_mint.setdefault(mint, []).extend(pool_trades(g, pool, min_usd))
         if i % 10 == 0:
             log(f"  scanned {i}/{len(pools)} pools")
-    return rank_wallets(by_mint)[:limit]
+    ranked = rank_wallets(by_mint)
+    if not max_tx_per_day:
+        return ranked[:limit]
+    if rpc is None:
+        from .rpc import SolanaRPC
+        rpc = SolanaRPC(per_min=150)
+    log(f"{len(ranked)} wallets seen; checking which trade at a pace you could copy "
+        f"(<= {max_tx_per_day} txs/day)")
+    return human_paced(ranked, limit, max_tx_per_day, rpc, log)
 
 
 def write_wallets(path, cands):
     lines = ["# Candidates from `python -m wt discover` (GeckoTerminal, last 24h of larger trades).\n",
              "# Unvetted: run collect + backtest to see which, if any, are worth following.\n"]
     for c in cands:
-        lines.append(f"{c['wallet']}  # tokens={c['tokens']} trades={c['trades']} "
+        pace = f" ~{c['tx_per_day']:.0f} txs/day" if "tx_per_day" in c else ""
+        lines.append(f"{c['wallet']}  #{pace} tokens={c['tokens']} trades={c['trades']} "
                      f"bought={c['buy_sol']:.1f} SOL 24h-closed-pnl={c['closed_pnl']:+.1f}\n")
     with open(path, "w") as f:
         f.writelines(lines)

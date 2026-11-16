@@ -20,10 +20,10 @@ def cmd_discover(cfg, args):
     import os
     from .discover import discover, write_wallets
 
-    path = cfg["paths"]["wallets"]
+    path = args.out or cfg["paths"]["wallets"]
     if os.path.exists(path) and config.read_wallets(path) and not args.force:
         raise SystemExit(f"{path} already has wallets. Use --force to replace it.")
-    cands = discover(db.connect(cfg["paths"]["db"]), args.pages, args.min_usd, args.limit)
+    cands = discover(db.connect(cfg["paths"]["db"]), args.pages, args.min_usd, args.limit, args.max_tx_per_day)
     write_wallets(path, cands)
     print(f"Wrote {len(cands)} candidate wallets to {path}. Next: python -m wt collect")
 
@@ -54,8 +54,10 @@ def cmd_collect(cfg, args):
             try:
                 txs = rpc.history(w, since, c["rpc_max_tx"], c["rpc_min_tx"])
             except TooActive:
-                txs = []
-                print(f"[{i}/{len(wallets)}] {w[:6]}…  skipped: more than {c['rpc_max_tx']} txs (bot)")
+                print(f"[{i}/{len(wallets)}] {w[:6]}…  skipped: more than {c['rpc_max_tx']} txs in {c['days']}d (bot)")
+                con.execute("INSERT OR REPLACE INTO wallet_meta VALUES(?,?,?,?,?)", (w, 0, 0, 0, int(time.time())))
+                con.commit()
+                continue
             except RuntimeError as e:
                 print(f"[{i}/{len(wallets)}] {w[:6]}…  failed ({e}); will retry next run")
                 continue
@@ -134,6 +136,9 @@ def main(argv=None):
     ds.add_argument("--pages", type=int, default=3, help="pages of trending/top-volume pools to scan")
     ds.add_argument("--min-usd", type=float, default=300, help="only look at trades at least this big")
     ds.add_argument("--limit", type=int, default=150)
+    ds.add_argument("--max-tx-per-day", type=float, default=60,
+                    help="drop wallets busier than this (bots); 0 = keep everyone, no RPC calls")
+    ds.add_argument("--out", help="write here instead of the wallets file in settings")
     ds.add_argument("--force", action="store_true", help="replace an existing wallets.txt")
     sub.add_parser("collect")
     b = sub.add_parser("backtest")

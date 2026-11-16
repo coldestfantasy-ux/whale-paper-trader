@@ -85,3 +85,21 @@ def test_gecko_no_sol_pool_means_no_price(monkeypatch):
     monkeypatch.setattr(clients, "_get", lambda *a, **k: R({"data": [_pool("U", 9, "MINT", USDC)]}))
     g = clients.Gecko(db.connect(":memory:"))
     assert g.top_pool("MINT") is None and g.candles("MINT", 0, 60) == []
+
+
+def test_gecko_candles_share_blocks_between_nearby_signals(monkeypatch):
+    calls = []
+
+    def fake_get(session, url, limiter=None, tries=8, **kw):
+        calls.append(kw["params"].get("before_timestamp"))
+        if url.endswith("/pools"):
+            return R({"data": [_pool("POOL", 10, "MINT", WSOL)]})
+        return R({"data": {"attributes": {"ohlcv_list": [[61_000, 1, 1, 1, 1, 1], [119_940, 2, 2, 2, 2, 2]]}}})
+
+    monkeypatch.setattr(clients, "_get", fake_get)
+    g = clients.Gecko(db.connect(":memory:"))
+    g.candles("MINT", 61_000, 62_000)
+    g.candles("MINT", 100_000, 110_000)   # same 1000-minute block: no new request
+    assert calls == [None, 120_000]
+    g.candles("MINT", 119_000, 121_000)   # crosses into the next block: one more request
+    assert calls == [None, 120_000, 180_000]

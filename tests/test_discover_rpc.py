@@ -56,5 +56,22 @@ def test_rank_wallets_prefers_breadth_and_drops_bots_and_sell_only():
         "M2": [_t("multi", "buy", 1), _t("fake", "buy", 3, anomalous=True)],
     }
     out = rank_wallets(trades, max_trades=40)
-    assert [c["wallet"] for c in out] == ["multi", "winner"]
-    assert out[0]["tokens"] == 2 and out[1]["closed_pnl"] == 3.0
+    assert [c["wallet"] for c in out] == ["winner", "multi"]  # closed a profit first, then by size
+    assert out[1]["tokens"] == 2 and out[0]["closed_pnl"] == 3.0
+
+
+def test_human_paced_drops_bots_by_onchain_activity():
+    import time
+    from wt.discover import human_paced
+    now = time.time()
+
+    class R:
+        def call(self, method, params):
+            if params[0] == "bot":   # 1000 txs in the last 2 hours
+                return [{"blockTime": now - 7200}] * 1000
+            if params[0] == "human":  # 1000 txs over 40 days = 25/day
+                return [{"blockTime": now - 40 * 86400}] * 1000
+            return [{"blockTime": now - 86400}] * 90   # 90 txs in total, ever
+
+    out = human_paced([{"wallet": w} for w in ("bot", "human", "new")], 10, 60, R(), log=lambda *_: None)
+    assert [c["wallet"] for c in out] == ["human", "new"] and round(out[0]["tx_per_day"]) == 25

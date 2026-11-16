@@ -102,6 +102,7 @@ class Gecko:
     """GeckoTerminal public API: 30 calls/min, minute candles for the last ~6 months.
     Candles are SOL per token, from the token's busiest SOL-paired pool."""
     BASE = "https://api.geckoterminal.com/api/v2"
+    BLOCK = 60_000  # seconds in 1000 one-minute candles
 
     def __init__(self, con):
         self.con = con
@@ -133,21 +134,25 @@ class Gecko:
         pool = self.top_pool(mint)
         if not pool:
             return []
-        before = int(end_ts // 60 * 60 + 60)
-        need = int((end_ts - start_ts) // 60) + 3
-        done = self.con.execute(
-            "SELECT 1 FROM candle_fetches WHERE pool=? AND mint=? AND before_ts=?",
-            (pool, mint, before)).fetchone()
-        if not done:
+        # Fetch in fixed 1000-minute blocks (the API's page size), so signals on the same
+        # token that are close in time share one request instead of one each.
+        for k in range(int(start_ts // self.BLOCK), int(end_ts // self.BLOCK) + 1):
+            before = (k + 1) * self.BLOCK
+            done = self.con.execute(
+                "SELECT 1 FROM candle_fetches WHERE pool=? AND mint=? AND before_ts=?",
+                (pool, mint, before)).fetchone()
+            if done:
+                continue
             r = _get(self.s, f"{self.BASE}/networks/solana/pools/{pool}/ohlcv/minute", self.lim,
-                     params={"aggregate": 1, "before_timestamp": before, "limit": min(1000, need),
+                     params={"aggregate": 1, "before_timestamp": before, "limit": 1000,
                              "currency": "token", "token": mint})
             rows = []
             if r.status_code == 200:
                 lst = ((r.json().get("data") or {}).get("attributes") or {}).get("ohlcv_list") or []
                 rows = [(pool, mint, int(c[0]), *map(float, c[1:6])) for c in lst]
             self.con.executemany("INSERT OR IGNORE INTO candles VALUES(?,?,?,?,?,?,?,?)", rows)
-            self.con.execute("INSERT OR IGNORE INTO candle_fetches VALUES(?,?,?)", (pool, mint, before))
+            if before <= time.time():  # a block still in progress must be fetched again later
+                self.con.execute("INSERT OR IGNORE INTO candle_fetches VALUES(?,?,?)", (pool, mint, before))
             self.con.commit()
         rows = self.con.execute(
             "SELECT ts,o,h,l,c,v FROM candles WHERE pool=? AND mint=? AND ts>=? AND ts<=? ORDER BY ts",
