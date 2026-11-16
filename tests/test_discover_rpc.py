@@ -29,7 +29,7 @@ def test_signatures_stop_at_window_and_flag_bots():
         def __init__(self, pages):
             self.pages = pages
 
-        def call(self, method, params, tries=8):
+        def call(self, method, params, tries=12):
             return self.pages.pop(0)
 
     page = [{"signature": f"s{i}", "blockTime": 1000 - i, "err": None if i % 2 else {"e": 1}} for i in range(10)]

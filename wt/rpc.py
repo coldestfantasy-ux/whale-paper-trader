@@ -47,7 +47,7 @@ def to_enhanced(sig, tx):
 
 
 class SolanaRPC:
-    def __init__(self, url="https://api.mainnet-beta.solana.com", per_min=90, workers=2):
+    def __init__(self, url="https://api.mainnet-beta.solana.com", per_min=60, workers=2):
         self.url = url
         self.local = threading.local()
         self.lim = RateLimiter(per_min)  # the public RPC starts refusing well below its documented limit
@@ -59,21 +59,21 @@ class SolanaRPC:
             self.local.s = requests.Session()
         return self.local.s
 
-    def call(self, method, params, tries=8):
+    def call(self, method, params, tries=12):
         for i in range(tries):
             self.lim.wait()
             try:
                 r = self.s.post(self.url, json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params}, timeout=30)
             except requests.RequestException:
-                time.sleep(min(2 ** i, 20))
+                time.sleep(min(2 ** i, 60))
                 continue
             if r.status_code == 429 or r.status_code >= 500:
-                time.sleep(min(2 ** i + 1, 20))
+                time.sleep(min(2 ** i + 1, 60))
                 continue
             j = r.json()
             if "error" in j:
                 if (j["error"] or {}).get("code") in (429, -32005):  # node-side rate limit
-                    time.sleep(min(2 ** i + 1, 20))
+                    time.sleep(min(2 ** i + 1, 60))
                     continue
                 return None
             return j.get("result")
