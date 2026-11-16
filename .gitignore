@@ -1,0 +1,7 @@
+.env
+data/
+settings.toml
+wallets.txt
+follow.txt
+.venv/
+__pycache__/

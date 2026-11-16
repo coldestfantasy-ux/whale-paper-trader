@@ -1,0 +1,58 @@
+# Copy to settings.toml and edit. Anything omitted uses the default shown here.
+
+[paths]
+db = "data/whales.db"
+wallets = "wallets.txt"
+
+[collect]
+days = 30
+max_pages = 30
+min_sol = 0.01
+
+[scoring]
+min_trips = 10
+min_profit_factor = 1.5
+min_win_rate = 0.35
+max_top_trip_share = 0.5
+min_median_hold_min = 3.0
+min_avg_size_sol = 0.2
+max_avg_size_sol = 500.0
+
+[backtest]
+train_frac = 0.6
+top_n = 15
+start_sol = 10.0
+size_sol = 0.5
+max_open = 5
+delay_sec = 20
+slippage_bps = 150
+fee_sol = 0.0006
+fail_rate = 0.05
+take_profit = 0.5
+stop_loss = 0.25
+trailing_stop = 0.0
+max_hold_min = 240
+follow_whale_exit = true
+seed = 7
+
+[live]
+start_sol = 10.0
+size_sol = 0.5
+max_open = 5
+reserve_sol = 0.1
+min_whale_buy_sol = 0.5
+confluence_wallets = 1
+confluence_window_min = 60
+exec_latency_sec = 2.0
+slippage_bps = 300
+fill_haircut_bps = 50
+fee_sol = 0.0006
+fail_rate = 0.05
+take_profit = 0.5
+stop_loss = 0.25
+trailing_stop = 0.0
+max_hold_min = 240
+follow_whale_exit = true
+monitor_sec = 15
+write_off_min = 15
+follow_file = "follow.txt"

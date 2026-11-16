@@ -1,0 +1,2 @@
+# Candidate wallets, one per line. Comments after # are ignored.
+# Paste 50-200 addresses from GMGN / Birdeye / Dexscreener "top traders".
