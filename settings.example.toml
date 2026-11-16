@@ -8,6 +8,9 @@ wallets = "wallets.txt"
 days = 30
 max_pages = 30
 min_sol = 0.01
+rpc_max_tx = 400
+rpc_min_tx = 25
+resume_hours = 12
 
 [scoring]
 min_trips = 10

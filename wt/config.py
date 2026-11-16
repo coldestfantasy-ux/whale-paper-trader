@@ -13,6 +13,9 @@ DEFAULTS = {
         "days": 30,              # how much history to pull per wallet
         "max_pages": 30,         # 100 tx per page; caps credits spent on hyperactive bots
         "min_sol": 0.01,         # ignore swaps smaller than this
+        "rpc_max_tx": 400,       # keyless mode: skip wallets with more txs than this (bots)
+        "rpc_min_tx": 25,        # keyless mode: skip wallets too quiet to have 10 round-trips
+        "resume_hours": 12,      # don't re-collect a wallet collected this recently
     },
     "scoring": {
         "min_trips": 10,         # closed round-trips needed before we trust a wallet

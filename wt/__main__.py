@@ -1,4 +1,5 @@
 """Usage:
+  python -m wt discover           find candidate wallets from trending pools (no key), writes wallets.txt
   python -m wt collect            pull swap history for wallets.txt
   python -m wt backtest [--baseline]   score wallets + out-of-sample copy test, writes follow.txt
   python -m wt live               paper trade follow.txt in real time
@@ -15,6 +16,18 @@ import time
 from . import config, db
 
 
+def cmd_discover(cfg, args):
+    import os
+    from .discover import discover, write_wallets
+
+    path = cfg["paths"]["wallets"]
+    if os.path.exists(path) and config.read_wallets(path) and not args.force:
+        raise SystemExit(f"{path} already has wallets. Use --force to replace it.")
+    cands = discover(db.connect(cfg["paths"]["db"]), args.pages, args.min_usd, args.limit)
+    write_wallets(path, cands)
+    print(f"Wrote {len(cands)} candidate wallets to {path}. Next: python -m wt collect")
+
+
 def cmd_collect(cfg, args):
     from .clients import Helius
     from .parse import parse_tx
@@ -22,18 +35,39 @@ def cmd_collect(cfg, args):
     wallets = config.read_wallets(cfg["paths"]["wallets"])
     if not wallets:
         raise SystemExit(f"Add candidate wallet addresses to {cfg['paths']['wallets']} (one per line).")
-    h = Helius(cfg["keys"]["helius"])
+    c = cfg["collect"]
+    keyless = not cfg["keys"]["helius"]
+    if keyless:
+        from .rpc import SolanaRPC, TooActive
+        rpc = SolanaRPC()
+        print("No HELIUS_API_KEY: using Solana's public RPC (slower; skips bots and very quiet wallets).")
+    else:
+        h = Helius(cfg["keys"]["helius"])
     con = db.connect(cfg["paths"]["db"])
-    since = int(time.time() - cfg["collect"]["days"] * 86400)
+    since = int(time.time() - c["days"] * 86400)
+    fresh = time.time() - c["resume_hours"] * 3600
+    done = {r[0] for r in con.execute("SELECT wallet FROM wallet_meta WHERE collected_at>=?", (fresh,))}
     for i, w in enumerate(wallets, 1):
-        txs = h.history(w, since, cfg["collect"]["max_pages"])
+        if w in done:
+            continue  # collected recently: lets an interrupted run pick up where it stopped
+        if keyless:
+            try:
+                txs = rpc.history(w, since, c["rpc_max_tx"], c["rpc_min_tx"])
+            except TooActive:
+                txs = []
+                print(f"[{i}/{len(wallets)}] {w[:6]}…  skipped: more than {c['rpc_max_tx']} txs (bot)")
+            except RuntimeError as e:
+                print(f"[{i}/{len(wallets)}] {w[:6]}…  failed ({e}); will retry next run")
+                continue
+        else:
+            txs = h.history(w, since, cfg["collect"]["max_pages"])
         trades = [t for t in (parse_tx(x, w, cfg["collect"]["min_sol"]) for x in txs) if t]
         db.insert_trades(con, trades)
         ts = [x.get("timestamp", 0) for x in txs] or [0]
         con.execute("INSERT OR REPLACE INTO wallet_meta VALUES(?,?,?,?,?)",
                     (w, max(ts), min(ts), len(txs), int(time.time())))
         con.commit()
-        capped = " (hit page cap: very active wallet, probably a bot)" if len(txs) >= cfg["collect"]["max_pages"] * 100 * 0.95 else ""
+        capped = " (hit page cap: very active wallet, probably a bot)" if not keyless and len(txs) >= cfg["collect"]["max_pages"] * 100 * 0.95 else ""
         print(f"[{i}/{len(wallets)}] {w[:6]}…  {len(txs)} txs -> {len(trades)} swaps{capped}")
     print("Done. Next: python -m wt backtest")
 
@@ -96,6 +130,11 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="wt", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--settings", default="settings.toml")
     sub = ap.add_subparsers(dest="cmd", required=True)
+    ds = sub.add_parser("discover", help="find candidate wallets (no API key needed)")
+    ds.add_argument("--pages", type=int, default=3, help="pages of trending/top-volume pools to scan")
+    ds.add_argument("--min-usd", type=float, default=300, help="only look at trades at least this big")
+    ds.add_argument("--limit", type=int, default=150)
+    ds.add_argument("--force", action="store_true", help="replace an existing wallets.txt")
     sub.add_parser("collect")
     b = sub.add_parser("backtest")
     b.add_argument("--baseline", action="store_true", help="also simulate copying every candidate (slow)")
@@ -109,7 +148,7 @@ def main(argv=None):
     d.add_argument("--demo", action="store_true", help="show synthetic demo trades instead of your account")
     args = ap.parse_args(argv)
     cfg = config.load(args.settings)
-    {"collect": cmd_collect, "backtest": cmd_backtest, "live": cmd_live, "report": cmd_report,
+    {"discover": cmd_discover, "collect": cmd_collect, "backtest": cmd_backtest, "live": cmd_live, "report": cmd_report,
      "reset-paper": cmd_reset, "demo": cmd_demo, "dashboard": cmd_dashboard}[args.cmd](cfg, args)
 
 

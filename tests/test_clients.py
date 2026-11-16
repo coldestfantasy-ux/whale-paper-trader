@@ -28,7 +28,7 @@ def test_helius_history_pages_and_resumes_after_error_object(monkeypatch):
     ]
     seen = []
 
-    def fake_get(session, url, limiter=None, tries=5, **kw):
+    def fake_get(session, url, limiter=None, tries=8, **kw):
         seen.append(kw["params"].get("before-signature"))
         return R(pages.pop(0))
 
@@ -42,7 +42,7 @@ def test_helius_history_pages_and_resumes_after_error_object(monkeypatch):
 def test_gecko_candles_cached(monkeypatch):
     calls = []
 
-    def fake_get(session, url, limiter=None, tries=5, **kw):
+    def fake_get(session, url, limiter=None, tries=8, **kw):
         calls.append(url)
         if url.endswith("/pools"):
             return R({"data": [_pool("POOL", 10, "MINT", WSOL)]})
@@ -66,7 +66,7 @@ def test_jupiter_quote_shapes(monkeypatch):
 def test_gecko_uses_busiest_sol_pool_and_sol_prices(monkeypatch):
     params = []
 
-    def fake_get(session, url, limiter=None, tries=5, **kw):
+    def fake_get(session, url, limiter=None, tries=8, **kw):
         params.append(kw.get("params"))
         if url.endswith("/pools"):
             return R({"data": [_pool("USDC_POOL", 500, "MINT", USDC),

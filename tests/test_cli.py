@@ -55,10 +55,29 @@ def test_collect_without_wallets_explains(workdir):
         cli.main(["collect"])
 
 
-def test_collect_without_helius_key_explains(workdir):
-    (workdir / "wallets.txt").write_text("SomeWallet111  # comment\n")
-    with pytest.raises(SystemExit, match="HELIUS_API_KEY"):
-        cli.main(["collect"])
+def test_collect_without_helius_key_falls_back_to_public_rpc(workdir, monkeypatch, capsys):
+    from wt import rpc
+
+    calls = []
+
+    class FakeRPC:
+        def history(self, wallet, since, max_sigs, min_sigs):
+            calls.append(wallet)
+            if wallet == "BotWallet":
+                raise rpc.TooActive(wallet)
+            return [{"signature": "s1", "timestamp": 2_000_000_000, "accountData": [
+                {"account": wallet, "nativeBalanceChange": -1_000_000_000, "tokenBalanceChanges": [
+                    {"userAccount": wallet, "mint": "MINT", "rawTokenAmount": {"tokenAmount": "5000", "decimals": 3}}]}]}]
+
+    monkeypatch.setattr(rpc, "SolanaRPC", FakeRPC)
+    (workdir / "wallets.txt").write_text("SomeWallet111  # comment\nBotWallet\n")
+    cli.main(["collect"])
+    out = capsys.readouterr().out
+    assert "public RPC" in out and "1 txs -> 1 swaps" in out and "skipped" in out
+    con = db.connect(str(workdir / "data/test.db"))
+    assert con.execute("SELECT side, sol_amt FROM trades").fetchall()[0][:] == ("buy", 1.0)
+    cli.main(["collect"])  # both wallets were collected moments ago: nothing is fetched again
+    assert calls == ["SomeWallet111", "BotWallet"]
 
 
 def test_live_without_follow_file_explains(workdir):

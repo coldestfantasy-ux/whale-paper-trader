@@ -1,6 +1,7 @@
 """Thin HTTP clients: Helius (wallet history + tx parsing), GeckoTerminal (candles),
 Jupiter (real executable quotes for paper fills)."""
 import re
+import threading
 import time
 
 import requests
@@ -14,15 +15,18 @@ class RateLimiter:
     def __init__(self, per_min):
         self.gap = 60.0 / per_min
         self.last = 0.0
+        self.lock = threading.Lock()
 
     def wait(self):
-        d = self.last + self.gap - time.time()
+        with self.lock:  # reserve the next slot, then sleep outside the lock
+            slot = max(self.last + self.gap, time.time())
+            self.last = slot
+        d = slot - time.time()
         if d > 0:
             time.sleep(d)
-        self.last = time.time()
 
 
-def _get(session, url, limiter=None, tries=5, **kw):
+def _get(session, url, limiter=None, tries=8, **kw):
     for i in range(tries):
         if limiter:
             limiter.wait()
@@ -32,7 +36,7 @@ def _get(session, url, limiter=None, tries=5, **kw):
             time.sleep(2 ** i)
             continue
         if r.status_code == 429 or r.status_code >= 500:
-            time.sleep(2 ** i + 1)
+            time.sleep(min(2 ** i + 1, 30))  # 429s come in bursts; wait them out
             continue
         return r
     raise RuntimeError(f"GET failed after {tries} tries: {url}")
@@ -103,7 +107,7 @@ class Gecko:
         self.con = con
         self.s = requests.Session()
         self.s.headers["accept"] = "application/json"
-        self.lim = RateLimiter(27)
+        self.lim = RateLimiter(20)
 
     def top_pool(self, mint):
         row = self.con.execute("SELECT pool FROM pools WHERE mint=?", (mint,)).fetchone()
