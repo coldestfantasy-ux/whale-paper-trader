@@ -91,14 +91,16 @@ class SolanaRPC:
         while True:
             opts = {"limit": 1000, **({"before": before} if before else {})}
             page = self.call("getSignaturesForAddress", [wallet, opts]) or []
+            ended = False
             for s in page:
                 if (s.get("blockTime") or 0) < since_ts:
-                    return out
+                    ended = True
+                    break
                 if not s.get("err"):
                     out.append(s["signature"])
             if len(out) > max_sigs:
                 raise TooActive(wallet)
-            if len(page) < 1000:
+            if ended or len(page) < 1000:
                 return out
             before = page[-1]["signature"]
 
