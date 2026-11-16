@@ -69,11 +69,27 @@ python -m wt collect        # refresh history (re-run weekly)
 python -m wt backtest       # add --baseline to also test "copy everyone" (slow)
 python -m wt live           # leave running; Ctrl+C to stop, restarts resume positions
 python -m wt report         # check results any time (in a second terminal)
+python -m wt dashboard      # same, as a live web page: http://127.0.0.1:8050
 python -m wt reset-paper    # start a fresh paper account
 ```
 
 Run `live` for **at least 2–4 weeks and 50+ closed trades** before drawing conclusions.
 A good week means nothing on its own.
+
+## Dashboard
+
+`python -m wt dashboard` serves a page at http://127.0.0.1:8050 that reads the paper
+account (read-only) and refreshes every 5 seconds, so you can leave it open next to
+`live`. It shows equity and the equity curve, cash, realized and unrealized profit,
+win rate, drawdown, profit per copied wallet, exit reasons, open positions with their
+latest sell quote, recent trades and the trader's activity feed.
+
+- `--demo` fills it with trades from the synthetic backtest (no keys needed), stored in
+  `data/demo.db` so your real account is untouched.
+- `--host 0.0.0.0` makes it reachable from your phone on the same network. There is no
+  login, so only do that on a network you trust.
+- While `live` runs it records equity once a minute, so the curve includes open
+  positions at their sell quote. Before that it steps at each closed trade.
 
 ## Settings worth tuning (`settings.toml`)
 
@@ -119,6 +135,7 @@ wt/backtest.py  walk-forward copy simulation
 wt/live.py      websocket listener + paper execution
 wt/clients.py   Helius / GeckoTerminal / Jupiter
 wt/demo.py      synthetic market for testing the logic
+wt/dashboard.py local web dashboard (+ dashboard.html)
 tests/          pytest -q
 ```
 

@@ -5,6 +5,7 @@
   python -m wt report             paper account summary
   python -m wt reset-paper        wipe the paper account and positions
   python -m wt demo               run scoring + backtest on synthetic data (no keys needed)
+  python -m wt dashboard [--demo] web dashboard of the paper account (http://127.0.0.1:8050)
 """
 import argparse
 import asyncio
@@ -69,7 +70,7 @@ def cmd_report(cfg, args):
 
 def cmd_reset(cfg, args):
     con = db.connect(cfg["paths"]["db"])
-    for t in ("paper_account", "positions", "whale_holdings", "events"):
+    for t in ("paper_account", "positions", "whale_holdings", "events", "equity_snapshots"):
         con.execute(f"DELETE FROM {t}")
     con.commit()
     print("Paper account reset.")
@@ -78,6 +79,17 @@ def cmd_reset(cfg, args):
 def cmd_demo(cfg, args):
     from .demo import run_demo
     run_demo(cfg)
+
+
+def cmd_dashboard(cfg, args):
+    from .dashboard import serve
+    path = cfg["paths"]["db"]
+    if args.demo:
+        from .demo import seed_dashboard_demo
+        path = str(__import__("pathlib").Path(path).with_name("demo.db"))
+        print("Building demo data from the synthetic backtest...")
+        seed_dashboard_demo(cfg, path)
+    serve(path, args.host, args.port, demo=args.demo)
 
 
 def main(argv=None):
@@ -91,10 +103,14 @@ def main(argv=None):
     sub.add_parser("report")
     sub.add_parser("reset-paper")
     sub.add_parser("demo")
+    d = sub.add_parser("dashboard", help="web dashboard of the paper account")
+    d.add_argument("--port", type=int, default=8050)
+    d.add_argument("--host", default="127.0.0.1", help="use 0.0.0.0 to reach it from another device")
+    d.add_argument("--demo", action="store_true", help="show synthetic demo trades instead of your account")
     args = ap.parse_args(argv)
     cfg = config.load(args.settings)
     {"collect": cmd_collect, "backtest": cmd_backtest, "live": cmd_live, "report": cmd_report,
-     "reset-paper": cmd_reset, "demo": cmd_demo}[args.cmd](cfg, args)
+     "reset-paper": cmd_reset, "demo": cmd_demo, "dashboard": cmd_dashboard}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":

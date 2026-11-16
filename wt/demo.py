@@ -8,8 +8,22 @@ Wallet types planted in the data:
   rand_*     random entries and exits
 This only proves the code behaves sensibly; real markets are much harder.
 """
+import hashlib
 import math
 import random
+import time
+
+B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+
+def _fake_address(name):
+    """Stable, Solana-looking address for a demo name, so shortened names stay distinct."""
+    n = int.from_bytes(hashlib.sha256(name.encode()).digest(), "big")
+    out = ""
+    while n:
+        n, r = divmod(n, 58)
+        out = B58[r] + out
+    return out[:44]
 
 from . import db
 from .backtest import walk_forward
@@ -127,12 +141,62 @@ def make_wallets(m, rng, split_ts):
     return trades
 
 
-def run_demo(cfg):
+def _build(cfg):
     rng = random.Random(42)
     start = 1_780_000_000
     m = Market(rng, start)
     split_ts = start + 30 * 86400 * cfg["backtest"]["train_frac"]
     con = db.connect(":memory:")
     db.insert_trades(con, make_wallets(m, rng, split_ts))
+    return con, m
+
+
+def run_demo(cfg):
+    con, m = _build(cfg)
     print("SYNTHETIC DEMO: fake market, fake wallets. Checks the logic, says nothing about real profits.\n")
     walk_forward(con, cfg, m, baseline=True)
+
+
+def seed_dashboard_demo(cfg, path, now=None, n_open=2):
+    """Fill a fresh database at `path` with a paper account built from the synthetic backtest's
+    copy trades, shifted so the last one ends `now`. The newest `n_open` trades are left open."""
+    con, m = _build(cfg)
+    res = walk_forward(con, cfg, m, log=lambda *_: None)["result"]
+    trades = sorted(res["closed"], key=lambda c: c["exit_ts"])
+    now = int(now or time.time())
+    shift = now - 300 - int(trades[-1]["exit_ts"])
+    out = db.connect(path)
+    for t in ("paper_account", "positions", "whale_holdings", "events", "equity_snapshots"):
+        out.execute(f"DELETE FROM {t}")
+    p = cfg["backtest"]
+    started = int(trades[0]["entry_ts"]) + shift - 600
+    cash = p["start_sol"]
+    rng = random.Random(11)
+    trades = [{**c, "wallet": _fake_address(c["wallet"]), "mint": _fake_address(c["mint"])} for c in trades]
+    for i, c in enumerate(trades):
+        e_ts, x_ts = int(c["entry_ts"]) + shift, int(c["exit_ts"]) + shift
+        is_open = i >= len(trades) - n_open
+        if is_open:  # opened recently, still running
+            e_ts = now - max(x_ts - e_ts, 600) // 2
+        cash -= c["size"]
+        out.execute("INSERT INTO events VALUES(?,?,?)",
+                    (e_ts, "BUY", f"{c['mint'][:6]}… {c['size']:.3f} SOL copying {c['wallet'][:6]}"))
+        if is_open:
+            # mark open positions at a price drawn from where the trade was heading
+            value = c["size"] * (1 + rng.uniform(-0.2, 0.35))
+            out.execute("INSERT INTO positions(mint,wallet,signal_sig,signal_ts,entry_ts,cost_sol,token_raw,"
+                        "peak_value,last_value,last_quote_ts,status) VALUES(?,?,?,?,?,?,?,?,?,?,'open')",
+                        (c["mint"], c["wallet"], "demo", e_ts - p["delay_sec"], e_ts,
+                         c["size"], "0", max(value, c["size"]), value, now))
+            continue
+        cash += c["proceeds"]
+        out.execute("INSERT INTO positions(mint,wallet,signal_sig,signal_ts,entry_ts,cost_sol,token_raw,"
+                    "peak_value,last_value,last_quote_ts,status,exit_ts,proceeds_sol,exit_reason) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,'closed',?,?,?)",
+                    (c["mint"], c["wallet"], "demo", e_ts - p["delay_sec"], e_ts, c["size"], "0",
+                     c["proceeds"], c["proceeds"], x_ts, x_ts, c["proceeds"], c["reason"]))
+        out.execute("INSERT INTO events VALUES(?,?,?)",
+                    (x_ts, "SELL", f"{c['mint'][:6]}… {c['reason']}: {c['pnl']:+.3f} SOL"))
+    out.execute("INSERT INTO paper_account VALUES(1,?,?,?)", (cash, p["start_sol"], started))
+    out.commit()
+    return out

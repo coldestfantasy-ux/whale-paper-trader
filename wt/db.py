@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS whale_holdings(
   wallet TEXT, mint TEXT, bought REAL DEFAULT 0, sold REAL DEFAULT 0,
   PRIMARY KEY(wallet, mint));
 CREATE TABLE IF NOT EXISTS events(ts INTEGER, kind TEXT, msg TEXT);
+CREATE TABLE IF NOT EXISTS equity_snapshots(ts INTEGER PRIMARY KEY, cash REAL, open_value REAL);
 """
 
 

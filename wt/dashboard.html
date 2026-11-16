@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whale Paper Trader</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f5f5f3;
+  --surface: #fcfcfb;
+  --border: #e4e3df;
+  --grid: #ebeae6;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #7a7974;
+  --series-1: #2a78d6;
+  --series-1-wash: rgba(42, 120, 214, 0.10);
+  --pos: #2a78d6;
+  --neg: #e34948;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --critical: #d03b3b;
+  --banner: #fff4dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121211;
+    --surface: #1a1a19;
+    --border: #2c2c2a;
+    --grid: #262624;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #8f8e86;
+    --series-1: #3987e5;
+    --series-1-wash: rgba(57, 135, 229, 0.12);
+    --pos: #3987e5;
+    --neg: #e66767;
+    --banner: #3a2f14;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121211;
+  --surface: #1a1a19;
+  --border: #2c2c2a;
+  --grid: #262624;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --text-muted: #8f8e86;
+  --series-1: #3987e5;
+  --series-1-wash: rgba(57, 135, 229, 0.12);
+  --pos: #3987e5;
+  --neg: #e66767;
+  --banner: #3a2f14;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text-primary);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.wrap { max-width: 1240px; margin: 0 auto; padding: 20px 16px 48px; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 16px; }
+h1 { font-size: 20px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+.status { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 13px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex: none; }
+.dot.live { background: var(--good); box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 25%, transparent); }
+.spacer { flex: 1; }
+.meta { color: var(--text-muted); font-size: 12px; }
+button.theme { background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+.banner { background: var(--banner); border-radius: 8px; padding: 8px 12px; margin-bottom: 16px; font-size: 13px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.tile .label { color: var(--text-secondary); font-size: 12.5px; }
+.tile .value { font-size: 24px; font-weight: 600; margin-top: 2px; letter-spacing: -0.01em; }
+.tile .sub { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+.arrow { font-size: 11px; margin-right: 2px; }
+.arrow.up { color: var(--pos); } .arrow.down { color: var(--neg); }
+h2 { font-size: 14px; font-weight: 600; margin: 0 0 2px; }
+.card .desc { color: var(--text-muted); font-size: 12px; margin: 0 0 10px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.grid2.wide-left { grid-template-columns: 3fr 2fr; }
+@media (max-width: 860px) { .grid2, .grid2.wide-left { grid-template-columns: 1fr; } }
+@media (max-width: 480px) { .tile .value { font-size: 20px; } .tiles { grid-template-columns: 1fr 1fr; gap: 8px; } .card { padding: 12px; } }
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.axis text { fill: var(--text-muted); font-size: 11px; }
+.gridline { stroke: var(--grid); stroke-width: 1; shape-rendering: crispEdges; }
+.refline { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 0; opacity: .55; }
+.tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
+  white-space: nowrap; opacity: 0; transition: opacity .08s; z-index: 5; }
+.tip b { font-weight: 600; }
+.tip .k { color: var(--text-muted); }
+.empty { color: var(--text-muted); padding: 24px 0; text-align: center; font-size: 13px; }
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; color: var(--text-muted); font-weight: 500; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 7px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+td.num, th.num { text-align: right; }
+tr:last-child td { border-bottom: 0; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.pill { display: inline-block; border: 1px solid var(--border); border-radius: 999px; padding: 0 8px; font-size: 11.5px; color: var(--text-secondary); }
+.feed { max-height: 420px; overflow-y: auto; }
+.ev { display: grid; grid-template-columns: 64px 52px 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--grid); font-size: 12.5px; }
+.ev:last-child { border-bottom: 0; }
+.ev .t { color: var(--text-muted); }
+.ev .kind { font-weight: 600; font-size: 11px; letter-spacing: .03em; color: var(--text-secondary); }
+.ev .msg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+a { color: inherit; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Whale Paper Trader</h1>
+    <span class="status"><span id="dot" class="dot"></span><span id="statusText">Connecting…</span></span>
+    <span class="spacer"></span>
+    <span class="meta" id="updated"></span>
+    <button class="theme" id="themeBtn" type="button">Theme</button>
+  </header>
+  <div id="banner" class="banner" hidden></div>
+  <div id="emptyState" class="card empty" hidden>
+    No paper account yet. Start <span class="mono">python -m wt live</span> and this page fills in on its own,
+    or run <span class="mono">python -m wt dashboard --demo</span> to see it with sample trades.
+  </div>
+
+  <main id="main" hidden>
+    <section class="tiles" id="tiles"></section>
+
+    <section class="card">
+      <h2>Equity</h2>
+      <p class="desc" id="curveDesc"></p>
+      <div class="chart" id="equityChart"></div>
+    </section>
+
+    <div class="grid2">
+      <section class="card">
+        <h2>Profit by copied wallet</h2>
+        <p class="desc">Realized SOL from closed trades, best first</p>
+        <div class="legend"><span><i style="background:var(--pos)"></i>Profit</span><span><i style="background:var(--neg)"></i>Loss</span></div>
+        <div class="chart" id="walletChart"></div>
+      </section>
+      <section class="card">
+        <h2>How trades exit</h2>
+        <p class="desc">Closed trades by exit reason, with the SOL each reason made or lost</p>
+        <div class="chart" id="reasonChart"></div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:12px">
+      <h2>Open positions</h2>
+      <p class="desc">Valued at the latest Jupiter sell quote</p>
+      <div class="tablewrap" id="openTable"></div>
+    </section>
+
+    <div class="grid2 wide-left">
+      <section class="card">
+        <h2>Recent trades</h2>
+        <p class="desc">Last 100 closed trades</p>
+        <div class="tablewrap feed" id="tradeTable"></div>
+      </section>
+      <section class="card">
+        <h2>Activity</h2>
+        <p class="desc">What the trader is doing, newest first</p>
+        <div class="feed" id="feed"></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+const REFRESH_MS = 5000;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const short = (w) => (w && w.length > 12 ? `${w.slice(0, 6)}…${w.slice(-4)}` : w || "");
+const sol = (x, d = 3) => (x == null ? "–" : `${x.toFixed(d)}`);
+const signed = (x, d = 3) => (x == null ? "–" : `${x >= 0 ? "+" : "−"}${Math.abs(x).toFixed(d)}`);
+const pct = (x, d = 1) => (x == null ? "–" : `${x >= 0 ? "+" : "−"}${Math.abs(x * 100).toFixed(d)}%`);
+const arrow = (x) => (x == null || Math.abs(x) < 1e-12 ? "" : `<span class="arrow ${x > 0 ? "up" : "down"}" aria-hidden="true">${x > 0 ? "▲" : "▼"}</span>`);
+const fmtTime = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const fmtWhen = (ts, now) => (new Date(ts * 1000).toDateString() === new Date(now * 1000).toDateString()
+  ? fmtTime(ts) : new Date(ts * 1000).toLocaleDateString([], { month: "short", day: "numeric" }));
+const fmtDateTime = (ts) => new Date(ts * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+function ago(sec) {
+  if (sec < 60) return `${Math.max(0, Math.round(sec))}s`;
+  if (sec < 3600) return `${Math.round(sec / 60)}m`;
+  if (sec < 86400) return `${(sec / 3600).toFixed(1)}h`;
+  return `${(sec / 86400).toFixed(1)}d`;
+}
+const reasonLabel = (r) => ({ take_profit: "Take profit", stop_loss: "Stop loss", whale_exit: "Whale sold", max_hold: "Time stop",
+  trailing: "Trailing stop", rugged_no_route: "Rugged (no route)" }[r] || r);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const svgEl = (tag, attrs = {}) => { const e = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+
+// ---------- theme toggle ----------
+(function () {
+  let saved = null;
+  try { saved = localStorage.getItem("wt-theme"); } catch (e) {}
+  if (saved) document.documentElement.dataset.theme = saved;
+  const label = () => { $("themeBtn").textContent = (document.documentElement.dataset.theme || "auto") === "auto" ? "Theme: auto" : `Theme: ${document.documentElement.dataset.theme}`; };
+  label();
+  $("themeBtn").onclick = () => {
+    const order = ["auto", "light", "dark"];
+    const cur = document.documentElement.dataset.theme || "auto";
+    const next = order[(order.indexOf(cur) + 1) % 3];
+    if (next === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = next;
+    try { next === "auto" ? localStorage.removeItem("wt-theme") : localStorage.setItem("wt-theme", next); } catch (e) {}
+    label();
+    if (lastState) render(lastState);
+  };
+})();
+
+// ---------- tooltip ----------
+function tipFor(container) {
+  let t = container.querySelector(".tip");
+  if (!t) { t = document.createElement("div"); t.className = "tip"; container.appendChild(t); }
+  return {
+    show(html, x, y) {
+      t.innerHTML = html; t.style.opacity = 1;
+      const cw = container.clientWidth, tw = t.offsetWidth;
+      t.style.left = `${Math.min(Math.max(x + 12, 0), cw - tw)}px`;
+      t.style.top = `${Math.max(y - t.offsetHeight - 10, 0)}px`;
+    },
+    hide() { t.style.opacity = 0; },
+  };
+}
+
+function niceTicks(lo, hi, n = 5) {
+  if (hi - lo < 1e-9) { lo -= 0.5; hi += 0.5; }
+  const raw = (hi - lo) / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw);
+  const start = Math.floor(lo / step) * step, ticks = [];
+  for (let v = start; v <= hi + step * 0.5; v += step) ticks.push(+v.toFixed(10));
+  return ticks;
+}
+
+// ---------- equity line ----------
+function drawEquity(el, s) {
+  el.innerHTML = "";
+  const pts = s.curve, step = s.curve_kind === "realized";
+  const W = el.clientWidth, H = W < 560 ? 220 : 280, m = { t: 14, r: 64, b: 26, l: 46 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const ys = pts.map((p) => p[1]).concat([s.account.start]);
+  const ticks = niceTicks(Math.min(...ys), Math.max(...ys), 4);
+  const y0 = ticks[0], y1 = ticks[ticks.length - 1];
+  const x0 = pts[0][0], x1 = Math.max(pts[pts.length - 1][0], x0 + 60);
+  const X = (t) => m.l + ((t - x0) / (x1 - x0)) * iw, Y = (v) => m.t + ih - ((v - y0) / (y1 - y0)) * ih;
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": "Equity over time in SOL" });
+  const ax = svgEl("g", { class: "axis" });
+  for (const v of ticks) {
+    ax.appendChild(svgEl("line", { class: "gridline", x1: m.l, x2: m.l + iw, y1: Y(v), y2: Y(v) }));
+    const tx = svgEl("text", { x: m.l - 8, y: Y(v) + 4, "text-anchor": "end" }); tx.textContent = v.toFixed(v % 1 ? 1 : 0); ax.appendChild(tx);
+  }
+  const span = x1 - x0, nx = Math.max(2, Math.min(6, Math.floor(iw / 110)));
+  for (let i = 0; i <= nx; i++) {
+    const t = x0 + (span * i) / nx;
+    const tx = svgEl("text", { x: X(t), y: H - 6, "text-anchor": i === 0 ? "start" : i === nx ? "end" : "middle" });
+    tx.textContent = span > 2 * 86400 ? new Date(t * 1000).toLocaleDateString([], { month: "short", day: "numeric" }) : fmtTime(t);
+    ax.appendChild(tx);
+  }
+  svg.appendChild(ax);
+  // start reference
+  svg.appendChild(svgEl("line", { class: "refline", x1: m.l, x2: m.l + iw, y1: Y(s.account.start), y2: Y(s.account.start) }));
+  const rl = svgEl("text", { x: m.l + iw + 6, y: Y(s.account.start) + 4, fill: css("--text-muted"), "font-size": 11 }); rl.textContent = "start";
+  // path
+  let d = `M${X(pts[0][0])},${Y(pts[0][1])}`;
+  for (let i = 1; i < pts.length; i++) d += step ? `H${X(pts[i][0])}V${Y(pts[i][1])}` : `L${X(pts[i][0])},${Y(pts[i][1])}`;
+  const area = `${d}V${m.t + ih}H${X(pts[0][0])}Z`;
+  svg.appendChild(svgEl("path", { d: area, fill: css("--series-1-wash"), stroke: "none" }));
+  svg.appendChild(svgEl("path", { d, fill: "none", stroke: css("--series-1"), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+  const last = pts[pts.length - 1];
+  svg.appendChild(svgEl("circle", { cx: X(last[0]), cy: Y(last[1]), r: 4, fill: css("--series-1"), stroke: css("--surface"), "stroke-width": 2 }));
+  const el2 = svgEl("text", { x: X(last[0]) + 8, y: Y(last[1]) + 4, fill: css("--text-primary"), "font-size": 12, "font-weight": 600 });
+  el2.textContent = sol(last[1], 2);
+  // keep the start label clear of the end label
+  if (Math.abs(Y(last[1]) - Y(s.account.start)) > 14) svg.appendChild(rl);
+  svg.appendChild(el2);
+  // crosshair
+  const cross = svgEl("line", { x1: 0, x2: 0, y1: m.t, y2: m.t + ih, stroke: css("--text-muted"), "stroke-width": 1, opacity: 0 });
+  const cdot = svgEl("circle", { r: 4, fill: css("--series-1"), stroke: css("--surface"), "stroke-width": 2, opacity: 0 });
+  svg.appendChild(cross); svg.appendChild(cdot);
+  const hit = svgEl("rect", { x: m.l, y: m.t, width: iw, height: ih, fill: "transparent" });
+  svg.appendChild(hit);
+  el.appendChild(svg);
+  const tip = tipFor(el);
+  const valueAt = (t) => { // step curves hold the last value until the next point
+    let lo = 0, hi = pts.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (pts[mid][0] <= t) lo = mid; else hi = mid - 1; }
+    if (step || lo === pts.length - 1) return pts[lo];
+    const a = pts[lo], b = pts[lo + 1], f = (t - a[0]) / (b[0] - a[0] || 1);
+    return [t, a[1] + (b[1] - a[1]) * f];
+  };
+  const move = (ev) => {
+    const r = svg.getBoundingClientRect(), px = ((ev.clientX - r.left) / r.width) * W;
+    const t = x0 + ((Math.min(Math.max(px, m.l), m.l + iw) - m.l) / iw) * (x1 - x0);
+    const p = valueAt(t), cx = X(t), cy = Y(p[1]);
+    cross.setAttribute("x1", cx); cross.setAttribute("x2", cx); cross.setAttribute("opacity", 0.5);
+    cdot.setAttribute("cx", cx); cdot.setAttribute("cy", cy); cdot.setAttribute("opacity", 1);
+    const ret = p[1] / s.account.start - 1;
+    tip.show(`<div class="k">${fmtDateTime(t)}</div><b>${sol(p[1], 3)} SOL</b> <span class="k">(${arrow(ret)}${pct(ret)})</span>`,
+      (cx / W) * el.clientWidth, (cy / H) * el.clientHeight);
+  };
+  hit.addEventListener("pointermove", move);
+  hit.addEventListener("pointerleave", () => { tip.hide(); cross.setAttribute("opacity", 0); cdot.setAttribute("opacity", 0); });
+}
+
+// ---------- horizontal bars ----------
+// rounded 4px at the data end, square at the baseline
+function hbar(xa, xb, y, h) {
+  const r = Math.min(4, Math.abs(xb - xa), h / 2), left = Math.min(xa, xb), right = Math.max(xa, xb);
+  if (right - left < 0.5) return "";
+  return xb >= xa
+    ? `M${left},${y}H${right - r}Q${right},${y} ${right},${y + r}V${y + h - r}Q${right},${y + h} ${right - r},${y + h}H${left}Z`
+    : `M${right},${y}H${left + r}Q${left},${y} ${left},${y + r}V${y + h - r}Q${left},${y + h} ${left + r},${y + h}H${right}Z`;
+}
+
+function drawBars(el, rows, { label, value, color, valueText, tipHtml, diverging }) {
+  el.innerHTML = "";
+  if (!rows.length) { el.innerHTML = `<div class="empty">No closed trades yet</div>`; return; }
+  const W = el.clientWidth, band = 30, barH = 18, labelW = Math.min(120, W * 0.32), valW = 64;
+  const H = rows.length * band + 4;
+  const vals = rows.map(value), lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
+  const x0 = labelW + 8 + (diverging && lo < 0 ? valW : 0), x1 = W - valW;
+  const X = (v) => x0 + ((v - lo) / (hi - lo || 1)) * (x1 - x0);
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img" });
+  const zero = X(0);
+  svg.appendChild(svgEl("line", { class: "gridline", x1: zero, x2: zero, y1: 0, y2: H }));
+  const tip = tipFor(el);
+  rows.forEach((r, i) => {
+    const v = value(r), y = i * band + (band - barH) / 2;
+    const lt = svgEl("text", { x: 0, y: y + barH / 2 + 4, fill: css("--text-secondary"), "font-size": 12 });
+    lt.textContent = label(r); svg.appendChild(lt);
+    const p = hbar(zero, X(v), y, barH);
+    if (p) svg.appendChild(svgEl("path", { d: p, fill: color(r) }));
+    const vt = svgEl("text", { x: v >= 0 ? X(v) + 6 : X(v) - 6, y: y + barH / 2 + 4, "text-anchor": v >= 0 ? "start" : "end",
+      fill: css("--text-primary"), "font-size": 12 });
+    vt.textContent = valueText(r); svg.appendChild(vt);
+    const hit = svgEl("rect", { x: 0, y: i * band, width: W, height: band, fill: "transparent" });
+    hit.addEventListener("pointermove", (ev) => { const b = el.getBoundingClientRect(); tip.show(tipHtml(r), ev.clientX - b.left, ev.clientY - b.top); });
+    hit.addEventListener("pointerleave", () => tip.hide());
+    svg.appendChild(hit);
+  });
+  el.appendChild(svg);
+}
+
+// ---------- render ----------
+let lastState = null;
+function render(s) {
+  lastState = s;
+  const a = s.account;
+  $("updated").textContent = `Updated ${fmtTime(s.now)} · refreshes every ${REFRESH_MS / 1000}s`;
+  $("banner").hidden = !s.demo;
+  if (s.demo) $("banner").textContent = "Demo data: trades from the synthetic backtest, not a real paper account. Run without --demo to see yours.";
+  if (!a) {
+    $("main").hidden = true; $("emptyState").hidden = false;
+    $("dot").className = "dot"; $("statusText").textContent = "No paper account";
+    return;
+  }
+  $("main").hidden = false; $("emptyState").hidden = true;
+  const st = s.status || {};
+  $("dot").className = `dot${st.live ? " live" : ""}`;
+  $("statusText").textContent = s.demo ? "Demo" : st.live ? `Live · last activity ${ago(s.now - st.last_event_ts)} ago`
+    : st.last_event_ts ? `Idle · last activity ${ago(s.now - st.last_event_ts)} ago` : "Idle";
+
+  const tiles = [
+    { label: "Equity", value: `${sol(a.equity, 2)} SOL`, sub: `${arrow(a.return)}${pct(a.return)} vs ${sol(a.start, 1)} start` },
+    { label: "Cash", value: `${sol(a.cash, 2)} SOL`, sub: `${s.open.length} open worth ${sol(a.open_value, 2)}` },
+    { label: "Realized profit", value: `${signed(a.realized, 2)} SOL`, sub: `unrealized ${signed(a.unrealized, 2)}` },
+    { label: "Win rate", value: a.win_rate == null ? "–" : `${Math.round(a.win_rate * 100)}%`, sub: `${a.closed} closed trades` },
+    { label: "Avg win / loss", value: `${signed(a.avg_win, 2)} / ${signed(a.avg_loss, 2)}`, sub: "SOL per closed trade" },
+    { label: "Max drawdown", value: `${(a.max_drawdown * 100).toFixed(1)}%`, sub: `since ${fmtDateTime(a.started_at)}` },
+  ];
+  $("tiles").innerHTML = tiles.map((t) => `<div class="card tile"><div class="label">${t.label}</div><div class="value">${t.value}</div><div class="sub">${t.sub}</div></div>`).join("");
+
+  $("curveDesc").textContent = s.curve_kind === "marked"
+    ? "SOL, cash plus open positions at their sell quote, sampled each minute while live runs"
+    : "SOL, stepping at each closed trade; the last point includes open positions";
+  drawEquity($("equityChart"), s);
+
+  drawBars($("walletChart"), s.wallets, {
+    label: (w) => short(w.wallet), value: (w) => w.pnl, diverging: true,
+    color: (w) => (w.pnl >= 0 ? css("--pos") : css("--neg")),
+    valueText: (w) => signed(w.pnl, 2),
+    tipHtml: (w) => `<div class="mono">${esc(short(w.wallet))}</div><b>${signed(w.pnl, 3)} SOL</b><div class="k">${w.trades} trades · ${Math.round((w.wins / w.trades) * 100)}% won</div>`,
+  });
+  drawBars($("reasonChart"), s.reasons, {
+    label: (r) => reasonLabel(r.reason), value: (r) => r.count, color: () => css("--series-1"),
+    valueText: (r) => `${r.count}`,
+    tipHtml: (r) => `<b>${esc(reasonLabel(r.reason))}</b><div>${r.count} trades</div><div class="k">${signed(r.pnl, 3)} SOL in total</div>`,
+  });
+
+  $("openTable").innerHTML = s.open.length ? `<table><thead><tr><th>Token</th><th>Copied wallet</th><th class="num">Cost</th><th class="num">Value now</th><th class="num">Return</th><th class="num">Held</th><th>Quote</th></tr></thead><tbody>${
+    s.open.map((p) => {
+      const r = p.value == null ? null : p.value / p.cost - 1;
+      const q = p.no_route_since ? `<span class="pill">no sell route ${ago(s.now - p.no_route_since)}</span>` : p.quote_ts ? `${ago(s.now - p.quote_ts)} ago` : "–";
+      return `<tr><td class="mono" title="${esc(p.mint)}">${esc(short(p.mint))}</td><td class="mono" title="${esc(p.wallet)}">${esc(short(p.wallet))}</td><td class="num">${sol(p.cost)}</td><td class="num">${sol(p.value)}</td><td class="num">${arrow(r)}${pct(r)}</td><td class="num">${ago(s.now - p.entry_ts)}</td><td>${q}</td></tr>`;
+    }).join("")}</tbody></table>` : `<div class="empty">No open positions</div>`;
+
+  $("tradeTable").innerHTML = s.trades.length ? `<table><thead><tr><th>Closed</th><th>Token</th><th>Wallet</th><th class="num">Cost</th><th class="num">Profit</th><th class="num">Return</th><th>Exit</th></tr></thead><tbody>${
+    s.trades.map((t) => `<tr><td>${fmtDateTime(t.exit_ts)}</td><td class="mono" title="${esc(t.mint)}">${esc(short(t.mint))}</td><td class="mono" title="${esc(t.wallet)}">${esc(short(t.wallet))}</td><td class="num">${sol(t.cost)}</td><td class="num">${arrow(t.pnl)}${signed(t.pnl)}</td><td class="num">${pct(t.pnl / t.cost, 0)}</td><td><span class="pill">${esc(reasonLabel(t.reason))}</span></td></tr>`).join("")
+  }</tbody></table>` : `<div class="empty">No closed trades yet</div>`;
+
+  $("feed").innerHTML = s.events.length ? s.events.map((e) => `<div class="ev"><span class="t" title="${fmtDateTime(e.ts)}">${fmtWhen(e.ts, s.now)}</span><span class="kind">${esc(e.kind.toUpperCase())}</span><span class="msg" title="${esc(e.msg)}">${esc(e.msg)}</span></div>`).join("")
+    : `<div class="empty">Nothing yet</div>`;
+}
+
+async function tick() {
+  try {
+    const r = await fetch("api/state", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    render(await r.json());
+  } catch (e) {
+    $("dot").className = "dot"; $("statusText").textContent = "Dashboard server not reachable, retrying…";
+  }
+}
+let resizeT;
+window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => lastState && render(lastState), 120); });
+tick();
+setInterval(tick, REFRESH_MS);
+</script>
+</body>
+</html>

@@ -25,6 +25,7 @@ class PaperTrader:
         self.recent_buys = {}   # mint -> {wallet: ts}
         self.busy = set()       # mints with an entry/exit in flight
         self.entering = 0       # entries in flight (count toward max_open)
+        self.last_snapshot = 0  # equity history for the dashboard, at most once a minute
         row = con.execute("SELECT * FROM paper_account WHERE id=1").fetchone()
         if not row:
             con.execute("INSERT INTO paper_account VALUES(1,?,?,?)",
@@ -205,6 +206,16 @@ class PaperTrader:
                 reason = "max_hold"
             if reason:
                 await self.exit(pos, reason)
+        self.snapshot()
+
+    def snapshot(self, every_sec=60):
+        now = int(self.now())
+        if now - self.last_snapshot < every_sec:
+            return
+        self.last_snapshot = now
+        open_val = sum(p["last_value"] or 0 for p in self.open_positions())
+        self.con.execute("INSERT OR REPLACE INTO equity_snapshots VALUES(?,?,?)", (now, self.cash, open_val))
+        self.con.commit()
 
 
 async def run_live(con, cfg, helius, jup, follow, log=print):
