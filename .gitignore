@@ -5,3 +5,6 @@ wallets.txt
 follow.txt
 .venv/
 __pycache__/
+settings.hunt.toml
+wallets.hunt.txt
+follow.hunt.txt

@@ -62,6 +62,34 @@ survives the filters. Good sources:
 
 Don't pre-filter by eye. Let the backtest reject them.
 
+### Hunting wallets by what they did (`hunt`, needs `HELIUS_API_KEY`)
+
+`hunt` looks for tokens that rose **5–10×** (hourly closes) over at least a day, finds
+the wallets that bought **early** (before price reached 2× the low), keeps the ones that
+**held for 2h+** without selling, and keeps only wallets that did this on **2+ tokens**.
+
+It only looks at data from before the backtest's test window, and records that cutoff in
+the database. `backtest` refuses to run if its test window starts before the cutoff, so
+the copy result really is out-of-sample. Use a separate settings file so the hunted
+wallets get their own database:
+
+```bash
+cat > settings.hunt.toml <<'TOML'
+[paths]
+db = "data/hunt.db"
+wallets = "wallets.hunt.txt"
+[collect]
+days = 60
+[live]
+follow_file = "follow.hunt.txt"
+TOML
+python -m wt --settings settings.hunt.toml hunt --mints-from data/whales.db
+python -m wt --settings settings.hunt.toml collect
+python -m wt --settings settings.hunt.toml backtest
+```
+
+See `python -m wt hunt --help` for the thresholds.
+
 ## Daily use
 
 ```bash

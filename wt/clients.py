@@ -77,6 +77,34 @@ class Helius:
                 break
         return [t for t in out if t.get("timestamp", 0) >= since_ts]
 
+    def window(self, address, gte_ts, lte_ts, max_pages=10):
+        """All transactions of `address` between two unix times, newest first.
+        Returns (txs, complete): complete is False when max_pages ran out first."""
+        out, cursor = [], None
+        url = f"{self.base}/v0/addresses/{address}/transactions"
+        for _ in range(max_pages):
+            params = {"api-key": self.key, "limit": 100, "sort-order": "desc",
+                      "gte-time": int(gte_ts), "lte-time": int(lte_ts)}
+            if cursor:
+                params["before-signature"] = cursor
+            data = _get(self.s, url, self.lim, params=params).json()
+            if isinstance(data, dict):
+                m = SIG_RE.search(str(data))
+                if m and m.group(0) != cursor:  # gap in the history: resume after it
+                    cursor = m.group(0)
+                    continue
+                break
+            if not data:
+                return out, True
+            if any(t.get("timestamp", 0) > lte_ts + 120 for t in data):
+                raise RuntimeError("Helius ignored the time window (gte-time/lte-time); "
+                                   "can't search a time range on this plan/API version")
+            out.extend(t for t in data if t.get("timestamp", 0) >= gte_ts)
+            cursor = data[-1]["signature"]
+            if data[-1].get("timestamp", 0) < gte_ts or len(data) < 100:
+                return out, True
+        return out, False
+
     def parse(self, sigs):
         r = self.s.post(f"{self.base}/v0/transactions", params={"api-key": self.key},
                         json={"transactions": list(sigs)}, timeout=30)
@@ -158,6 +186,29 @@ class Gecko:
             "SELECT ts,o,h,l,c,v FROM candles WHERE pool=? AND mint=? AND ts>=? AND ts<=? ORDER BY ts",
             (pool, mint, int(start_ts // 60 * 60), int(end_ts))).fetchall()
         return [tuple(r) for r in rows]
+
+
+def hour_candles(g, pool, mint, start_ts, end_ts):
+    """Hourly candles [ts,o,h,l,c,v] (SOL per token) for a pool, cached in hour_candles."""
+    have = g.con.execute("SELECT MIN(ts), MAX(ts) FROM hour_candles WHERE pool=? AND mint=?",
+                         (pool, mint)).fetchone()
+    if have[0] is None or have[0] > start_ts + 3600 or have[1] < end_ts - 7200:
+        before = int(end_ts)
+        while before > start_ts:
+            r = _get(g.s, f"{g.BASE}/networks/solana/pools/{pool}/ohlcv/hour", g.lim,
+                     params={"aggregate": 1, "before_timestamp": before, "limit": 1000,
+                             "currency": "token", "token": mint})
+            lst = (((r.json().get("data") or {}).get("attributes") or {}).get("ohlcv_list") or []
+                   if r.status_code == 200 else [])
+            g.con.executemany("INSERT OR IGNORE INTO hour_candles VALUES(?,?,?,?,?,?,?,?)",
+                              [(pool, mint, int(c[0]), *map(float, c[1:6])) for c in lst])
+            g.con.commit()
+            if len(lst) < 1000:
+                break  # pool didn't exist earlier
+            before = min(int(c[0]) for c in lst)
+    rows = g.con.execute("SELECT ts,o,h,l,c,v FROM hour_candles WHERE pool=? AND mint=? "
+                         "AND ts>=? AND ts<=? ORDER BY ts", (pool, mint, int(start_ts), int(end_ts)))
+    return [tuple(r) for r in rows]
 
 
 class Jupiter:

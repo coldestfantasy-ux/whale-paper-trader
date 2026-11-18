@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS candles(
   PRIMARY KEY(pool, mint, ts));
 CREATE TABLE IF NOT EXISTS candle_fetches(pool TEXT, mint TEXT, before_ts INTEGER,
   PRIMARY KEY(pool, mint, before_ts));
+CREATE TABLE IF NOT EXISTS hour_candles(
+  pool TEXT, mint TEXT, ts INTEGER, o REAL, h REAL, l REAL, c REAL, v REAL,
+  PRIMARY KEY(pool, mint, ts));
+CREATE TABLE IF NOT EXISTS hunt_meta(key TEXT PRIMARY KEY, value INTEGER);
 CREATE TABLE IF NOT EXISTS paper_account(
   id INTEGER PRIMARY KEY CHECK(id=1), cash_sol REAL, start_sol REAL, started_at INTEGER);
 CREATE TABLE IF NOT EXISTS positions(

@@ -145,6 +145,13 @@ def walk_forward(con, cfg, candle_src, log=print, baseline=False):
     log(f"History: {len(trades)} swaps, {len(g)} wallets, {days(t0, t1):.1f} days. "
         f"Scoring on first {days(t0, split):.1f}d, testing on last {days(split, t1):.1f}d.\n")
 
+    row = con.execute("SELECT value FROM hunt_meta WHERE key='cutoff'").fetchone()
+    if row and split < row[0]:
+        raise SystemExit(
+            f"These wallets were found by `hunt` using data up to {row[0]}, but the test window "
+            f"starts earlier ({split}), so the result would not be out-of-sample. Re-run hunt "
+            f"with the same [collect] days and [backtest] train_frac as this settings file.")
+
     scores = score_all(g, rules, before_ts=split)
     ranked = sorted(scores.items(), key=lambda kv: (kv[1]["passes"], kv[1]["score"]), reverse=True)
     selected = [w for w, m in ranked if m["passes"]][: p["top_n"]]
