@@ -1,0 +1,37 @@
+# Candidates from `python -m wt discover` (GeckoTerminal, last 24h of larger trades).
+# Unvetted: run collect + backtest to see which, if any, are worth following.
+A3hT32ZGgmpS8vkBVLoz4971xvoPux6Px544QCZEpvUi  # ~13 txs/day tokens=0 trades=0 bought=0.0 SOL 24h-closed-pnl=+0.0
+BZYRg9Crxdgasv46V5hEAG6x3DRpj9y1fV95Nf64m9MZ  # ~3 txs/day tokens=0 trades=0 bought=0.0 SOL 24h-closed-pnl=+0.0
+8bKH3HbVjouAr7vbBrgjHQzVZkTHcX2UtkyyYL3j35Pm  # ~26 txs/day tokens=0 trades=0 bought=0.0 SOL 24h-closed-pnl=+0.0
+CZ87MBgLB693opQrKHpxNjGwn2sTjKk1RoEbS36y9vBB  # ~55 txs/day tokens=0 trades=0 bought=0.0 SOL 24h-closed-pnl=+0.0
+5puB4dmYEctFwmYrPrwwkgqzwVnnUZhjzEazLHjP45zw  # ~23 txs/day tokens=0 trades=0 bought=0.0 SOL 24h-closed-pnl=+0.0
+2nsdQPy7yaJfStmPnkb178U5P1P9nxVqP914uHEH9VCp  # ~15 txs/day tokens=0 trades=0 bought=0.0 SOL 24h-closed-pnl=+0.0
+2GpdH4X8CRhTg5CJx6yNbfQ8U8iMufcXyaRZovhsv83E  # ~1 txs/day tokens=0 trades=0 bought=0.0 SOL 24h-closed-pnl=+0.0
+6RsDykRg2MCgJigGZkKsjyQfE6jY4XKfpxWzJSFi1C2z  # ~40 txs/day tokens=0 trades=0 bought=0.0 SOL 24h-closed-pnl=+0.0
+2UgUwHoR25GmSTx4zDQmpEtRjvw2S9XavzF6uApCikCW  # ~3 txs/day tokens=0 trades=0 bought=0.0 SOL 24h-closed-pnl=+0.0
+CccSh2xwBvmiwiUwZRjQvktwTQHz8yypSPCKM3tHy1eU  # ~69 txs/day tokens=0 trades=0 bought=0.0 SOL 24h-closed-pnl=+0.0
+HYFeg5uXmU7HkVg1kskf2RVjFpbsBpggvjmuw4YL4KQx  # ~8 txs/day, 6 of 8 recent txs are swaps
+DpPT3eBoEPyGVSETc2kDdiErUyPwgjZ9GgmyCULMy9Ng  # ~58 txs/day, 6 of 8 recent txs are swaps
+6661GodH3CfEJsEzkvE8tgtUxQhzYY1yzZ5f7ZbyU666  # ~28 txs/day, 6 of 8 recent txs are swaps
+C4qVaa64Yimw3va9gnMddVgk4BW3Yv2XMS7JB82GLGVS  # ~8 txs/day, 8 of 8 recent txs are swaps
+GVg53PS9FA5Y7gvvuSPVJzfxxCQSHTpChKNb5Tp4m8JW  # ~13 txs/day, 5 of 8 recent txs are swaps
+6tHrrfabhZM5tzYAWczEJVFHrYLUkZviy9Xkek5imxTv  # ~13 txs/day, 5 of 8 recent txs are swaps
+69u26X3xMAJqcA4yk7JLw5RLAYmvcDV1KgELs4serDgL  # ~2 txs/day, 3 of 8 recent txs are swaps
+8ZchTrFYfTxa3FTj2peaGZRShUGHTVG5dCzxyhWAU8gY  # ~3 txs/day, 4 of 8 recent txs are swaps
+E48rDKwu7676mjvstNu8gokysGdkEnr4QZ7zsmbsVtuK  # ~6 txs/day, 4 of 8 recent txs are swaps
+37KPPNvUUa9MMTGEHGi3QRaPVPJvSSYNXVX17HQzawao  # ~4 txs/day, 5 of 8 recent txs are swaps
+BvfBzvANqz2g92yrdHRSucpmk3bTsn4C9bepeoo7wo18  # ~39 txs/day, 3 of 8 recent txs are swaps
+9WUGQ5GZ2GDXN9d8PrpFkhJ2L8QhgBbGHhNDRVVvZaH  # ~3 txs/day, 4 of 8 recent txs are swaps
+81AZX2s4dvECQFVRAouostoELu655ASmopvhRejT3LWV  # ~11 txs/day, 7 of 8 recent txs are swaps
+6b6rtqnq1TjDaCsid1GNMLVbNGdj7jJrc72hn7HQf7Sk  # ~1 txs/day, 6 of 8 recent txs are swaps
+7eoYfQnbLyF4WXw46eS7pAwdnxbU95xcuMVRGjhaonEY  # ~6 txs/day, 6 of 8 recent txs are swaps
+CAXx4xDZoRpGdK22qSop7vp1tmhVryDe3FMSBc7VyZZY  # ~8 txs/day, 5 of 8 recent txs are swaps
+Fr4Bi81wbD1bzjMTWPqzQ3Zi6EqmLNUdPrH5mF7VyJg  # ~8 txs/day, 3 of 8 recent txs are swaps
+4mww47ybAeUWW2gjwejmKwrxofzyHbXKR4kJj3KdmKq5  # ~57 txs/day, 6 of 8 recent txs are swaps
+9ngz3RiU2Av4YsEnuTBxpZ9HBKUDUJKqQioM6qhbcoix  # ~0 txs/day, 4 of 8 recent txs are swaps
+DKkAHyX85WSmNuZtwMZ8ZmChvVmfSupWJ7XrcNmGwRry  # ~12 txs/day, 5 of 8 recent txs are swaps
+EvFJXLEsXVX2CNQfKLjqKTtM4JdoRPHPRwL53NB7uPrv  # ~1 txs/day, 5 of 8 recent txs are swaps
+HkS7CkUy8eoDdQXK1L7LbmuszXYoWnoCkiDtVKCCF9aN  # ~2 txs/day, 5 of 8 recent txs are swaps
+5bed6VtEUEFHCNzkSoSQeSTAUx3KhaZsmPR1rduicszq  # ~2 txs/day, 5 of 8 recent txs are swaps
+FeAcG2Y2bkQRaBdBMURFK78KiLoE4CcgD2ECTPc2bwh2  # ~9 txs/day, 8 of 8 recent txs are swaps
+B6Y9gCwwLDDFxE3p3JZCiN3exJd3rGEamT9NuF7zbeJF  # ~1 txs/day, 5 of 8 recent txs are swaps
